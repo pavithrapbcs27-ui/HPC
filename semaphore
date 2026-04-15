@@ -1,0 +1,114 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <string.h>
+#include <time.h>
+
+#define BUFFER_SIZE 5
+#define TASKS 10
+#define STR_LEN 5
+
+typedef struct {
+    char str[STR_LEN + 1];
+} Task;
+
+Task word_buffer[BUFFER_SIZE];
+int in = 0, out = 0, processed = 0;
+
+sem_t empty, full;
+pthread_mutex_t mutex;
+FILE *fp;
+
+// Helper to generate random strings
+void generate_random_string(char *s) {
+    for (int i = 0; i < STR_LEN; i++) {
+        s[i] = 'a' + (rand() % 26);
+    }
+    s[STR_LEN] = '\0';
+}
+
+void* producer(void* arg) {
+    for (int i = 0; i < TASKS; i++) {
+        Task t;
+        generate_random_string(t.str);
+
+        sem_wait(&empty);
+        pthread_mutex_lock(&mutex);
+
+        word_buffer[in] = t;
+        printf("[Producer] Generated: %s\n", t.str);
+        in = (in + 1) % BUFFER_SIZE;
+
+        pthread_mutex_unlock(&mutex);
+        sem_post(&full);
+    }
+    return NULL;
+}
+
+void* worker(void* arg) {
+    while (1) {
+        sem_wait(&full);
+        pthread_mutex_lock(&mutex);
+
+        if (processed >= TASKS) {
+            pthread_mutex_unlock(&mutex);
+            sem_post(&full); // Wake up other workers to exit
+            break;
+        }
+
+        Task t = word_buffer[out];
+        out = (out + 1) % BUFFER_SIZE;
+        processed++;
+        pthread_mutex_unlock(&mutex);
+        sem_post(&empty);
+
+        // --- String Processing ---
+        char reversed[STR_LEN + 1];
+        int is_palindrome = 1;
+        int freq[256] = {0};
+
+        for (int i = 0; i < STR_LEN; i++) {
+            reversed[i] = t.str[STR_LEN - 1 - i];
+            freq[(int)t.str[i]]++;
+        }
+        reversed[STR_LEN] = '\0';
+        is_palindrome = (strcmp(t.str, reversed) == 0);
+
+        // --- Save to File ---
+        pthread_mutex_lock(&mutex);
+        fprintf(fp, "Original: %s | Reversed: %s | Palindrome: %s\n", 
+                t.str, reversed, is_palindrome ? "Yes" : "No");
+        fprintf(fp, "Frequencies: ");
+        for(int i=0; i<256; i++) if(freq[i]>0) fprintf(fp, "%c:%d ", i, freq[i]);
+        fprintf(fp, "\n------------------\n");
+        fflush(fp);
+        printf("[Worker] Processed: %s\n", t.str);
+        pthread_mutex_unlock(&mutex);
+    }
+    return NULL;
+}
+
+int main() {
+    pthread_t prod_tid, workers[4];
+    srand(time(NULL));
+    fp = fopen("result.txt", "w");
+
+    sem_init(&empty, 0, BUFFER_SIZE);
+    sem_init(&full, 0, 0);
+    pthread_mutex_init(&mutex, NULL);
+
+    pthread_create(&prod_tid, NULL, producer, NULL);
+    for (int i = 0; i < 4; i++) pthread_create(&workers[i], NULL, worker, NULL);
+
+    pthread_join(prod_tid, NULL);
+    for (int i = 0; i < 4; i++) pthread_join(workers[i], NULL);
+
+    fclose(fp);
+    sem_destroy(&empty);
+    sem_destroy(&full);
+    pthread_mutex_destroy(&mutex);
+
+    printf("\nProcessing Complete. Check result.txt\n");
+    return 0;
+}
