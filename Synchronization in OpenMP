@@ -1,0 +1,82 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <omp.h>
+
+#define SIZE 20
+#define MAXLINE 100
+
+char buffer[SIZE][MAXLINE];
+int count = 0;
+int finished_producers = 0;
+
+omp_lock_t lock;
+
+int main() {
+    int producers = 2;
+    int consumers = 2;
+    char target_word[50];
+
+    printf("Enter the specific word to search for: ");
+    scanf("%s", target_word);
+
+    omp_init_lock(&lock);
+
+    #pragma omp parallel num_threads(producers + consumers)
+    {
+        int id = omp_get_thread_num();
+        if (id < producers) {
+            char fname[20];
+            sprintf(fname, "file%d.txt", id + 1);
+            FILE *fp = fopen(fname, "r");
+
+            if (fp != NULL) {
+                char line[MAXLINE];
+                while (fgets(line, MAXLINE, fp)) {
+                    int inserted = 0;
+                    while (!inserted) {
+                        omp_set_lock(&lock);
+                        if (count < SIZE) {
+                            strcpy(buffer[count], line);
+                            count++;
+                            inserted = 1;
+                        }
+                        omp_unset_lock(&lock);
+                    }
+                }
+                fclose(fp);
+            }
+
+            #pragma omp atomic
+            finished_producers++;
+        }
+
+        else {
+            while (1) {
+                char current_line[MAXLINE];
+                int taken = 0;
+
+                omp_set_lock(&lock);
+                if (count > 0) {
+                    count--;
+                    strcpy(current_line, buffer[count]);
+                    taken = 1;
+                }
+                omp_unset_lock(&lock);
+
+                if (taken) {
+                  
+                    if (strstr(current_line, target_word) != NULL) {
+                        #pragma omp critical
+                        printf("Consumer %d matched '%s': %s", id, target_word, current_line);
+                    }
+                } else if (finished_producers >= producers) {
+                    break;
+                }
+            }
+        }
+    }
+
+    omp_destroy_lock(&lock);
+    return 0;
+}
