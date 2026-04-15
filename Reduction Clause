@@ -1,0 +1,33 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
+
+#define SIZE 100
+
+int main() {
+    int i;
+    int *A, *B;
+    int thread_count = 4;
+    long dot_product = 0; 
+
+    A = (int*)malloc(SIZE * sizeof(int));
+    B = (int*)malloc(SIZE * sizeof(int));
+
+    for (i = 0; i < SIZE; i++) {
+        A[i] = i; 
+        B[i] = i+1; 
+    }
+
+    #pragma omp parallel for num_threads(thread_count) reduction(+:dot_product)
+    for (i = 0; i < SIZE; i++) {
+        dot_product += (A[i] * B[i]);
+    }
+
+    printf("Computed Dot Product: %ld\n", dot_product);
+    printf("Process completed using %d threads.\n", thread_count);
+
+    free(A);
+    free(B);
+
+    return 0;
+}
