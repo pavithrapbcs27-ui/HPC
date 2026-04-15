@@ -20,7 +20,6 @@ sem_t empty, full;
 pthread_mutex_t mutex;
 FILE *fp;
 
-// Helper to generate random strings
 void generate_random_string(char *s) {
     for (int i = 0; i < STR_LEN; i++) {
         s[i] = 'a' + (rand() % 26);
@@ -63,7 +62,6 @@ void* worker(void* arg) {
         pthread_mutex_unlock(&mutex);
         sem_post(&empty);
 
-        // --- String Processing ---
         char reversed[STR_LEN + 1];
         int is_palindrome = 1;
         int freq[256] = {0};
@@ -75,7 +73,6 @@ void* worker(void* arg) {
         reversed[STR_LEN] = '\0';
         is_palindrome = (strcmp(t.str, reversed) == 0);
 
-        // --- Save to File ---
         pthread_mutex_lock(&mutex);
         fprintf(fp, "Original: %s | Reversed: %s | Palindrome: %s\n", 
                 t.str, reversed, is_palindrome ? "Yes" : "No");
