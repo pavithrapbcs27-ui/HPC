@@ -1,0 +1,41 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
+
+#define WIDTH 10
+#define HEIGHT 10
+
+int main() {
+    int i, j;
+    int **image;
+    int thread_count = 4;
+    int brightness_factor = 50;
+
+    image = (int**)malloc(HEIGHT * sizeof(int*));
+    for (i = 0; i < HEIGHT; i++) {
+        image[i] = (int*)malloc(WIDTH * sizeof(int));
+    }
+
+    for (i = 0; i < HEIGHT; i++) {
+        for (j = 0; j < WIDTH; j++) {
+            image[i][j] = 100; 
+        }
+    }
+
+    #pragma omp parallel for num_threads(thread_count)
+    for (i = 0; i < HEIGHT; i++) {
+        for (j = 0; j < WIDTH; j++) {
+            image[i][j] += brightness_factor;
+            
+        }
+    }
+
+    printf("Modified Intensity (sample): %d\n", image[0][0]);
+    printf("\nProcess completed using %d threads.\n", thread_count);
+
+    // Free memory
+    for (i = 0; i < HEIGHT; i++) free(image[i]);
+    free(image);
+
+    return 0;
+}
